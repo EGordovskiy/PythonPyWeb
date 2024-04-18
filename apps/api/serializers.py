@@ -22,3 +22,6 @@ class AuthorModelSerializer(ModelSerializer):
         model = Author
         # fields = '__all__'
         fields = ['id', 'name', 'email']
+
+
+

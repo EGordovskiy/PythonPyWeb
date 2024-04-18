@@ -9,9 +9,13 @@ from django.http import Http404
 from rest_framework.generics import GenericAPIView
 from rest_framework.mixins import RetrieveModelMixin, ListModelMixin, CreateModelMixin, UpdateModelMixin, DestroyModelMixin
 from .serializers import AuthorModelSerializer
+from rest_framework import permissions, viewsets
+from rest_framework import authentication
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 
 class AuthorAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     @csrf_exempt
     def dispatch(self, *args, **kwargs):
         return super().dispatch(*args, **kwargs)
@@ -70,10 +74,37 @@ class AuthorAPIView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class CustomPermission(permissions.BasePermission):
+    """
+    Пользователи могут выполнять различные действия в зависимости от их роли.
+    """
+    def has_permission(self, request, view):
+        # Разрешаем только GET-запросы для неаутентифицированных пользователей
+        if request.method == 'GET' and not request.user.is_authenticated:
+            return True
+
+        # Разрешаем GET и POST запросы для аутентифицированных пользователей
+        if request.method in ['GET', 'POST'] and request.user.is_authenticated:
+            return True
+
+        # Разрешаем все действия для админа
+        if request.user.is_superuser:
+            return True
+
+        # Во всех остальных случаях возвращаем False
+        return False
+
+
+
 class AuthorGenericAPIView(GenericAPIView, RetrieveModelMixin, ListModelMixin, CreateModelMixin, UpdateModelMixin,
                            DestroyModelMixin):
     queryset = Author.objects.all()
     serializer_class = AuthorModelSerializer
+    # Переопределяем атрибут permission_classes для указанния нашего собственного разрешения
+    # permission_classes = [CustomPermission]
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
 
     def get(self, request, *args, **kwargs):
         if kwargs.get(self.lookup_field):
@@ -99,3 +130,9 @@ class AuthorGenericAPIView(GenericAPIView, RetrieveModelMixin, ListModelMixin, C
 
     def delete(self, request, *args, **kwargs):
         return self.destroy(request, *args, **kwargs)
+
+
+class AuthorViewSet(viewsets.ModelViewSet):
+    queryset = Author.objects.all()
+    serializer_class = AuthorModelSerializer
+    http_method_names = ['get', 'post']
